@@ -1,0 +1,104 @@
+# Check all available options explanations at https://www.percona.com/doc/kubernetes-operator-for-pxc/operator.html
+# and an example at https://github.com/percona/percona-xtradb-cluster-operator/blob/main/deploy/cr.yaml
+apiVersion: pxc.percona.com/v1-7-0
+kind: PerconaXtraDBCluster
+metadata:
+  name: dummy-app-cluster
+  finalizers: []
+spec:
+  crVersion: 1.7.0
+  secretsName: {{ .Values.secretName | default "my-cluster-secrets"}}
+  vaultSecretName: keyring-secret-vault
+  sslSecretName: my-cluster-ssl
+  sslInternalSecretName: my-cluster-ssl-internal
+  logCollectorSecretName: my-log-collector-secrets
+  allowUnsafeConfigurations: {{ .Values.mysql.allowUnsafeConfigurations | default false }}
+  updateStrategy: SmartUpdate
+  upgradeOptions:
+    apply: Disabled
+  pxc:
+    size: {{ .Values.mysql.pxc.replicas | default 1 }}
+    image: "percona/percona-xtradb-cluster:{{ .Values.mysql.pxc.image.tag | default 5.7 }}"
+    imagePullPolicy: IfNotPresent
+    autoRecovery: true
+    configuration: |
+      [mysqld]
+      sql-mode="STRICT_TRANS_TABLES"
+    resources:
+      requests:
+        memory: {{ .Values.mysql.pxc.resources.requests.memory | default "1G" }}
+        cpu: {{ .Values.mysql.pxc.resources.requests.cpu | default "600m" }}
+    affinity:
+      antiAffinityTopologyKey: {{ .Values.mysql.affinity.antiAffinityTopologyKey | default "none" }}
+    podDisruptionBudget:
+      maxUnavailable: 1
+    volumeSpec:
+      persistentVolumeClaim:
+        resources:
+          requests:
+            storage: 6Gi
+    gracePeriod: 600
+  haproxy:
+    enabled: {{ .Values.mysql.haproxy.enabled | default true }}
+    size: {{ .Values.mysql.haproxy.replicas | default 1 }}
+    image: "percona/percona-xtradb-cluster-operator:{{ .Values.mysql.haproxy.image.tag | default "1.7.0-haproxy" }}"
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        memory: {{ .Values.mysql.haproxy.resources.requests.memory | default "1G" }}
+        cpu: {{ .Values.mysql.haproxy.resources.requests.cpu | default "600m" }}
+    affinity:
+      antiAffinityTopologyKey: {{ .Values.mysql.affinity.antiAffinityTopologyKey | default "none" }}
+    podDisruptionBudget:
+      maxUnavailable: 1
+    gracePeriod: 30
+  proxysql:
+    enabled: {{ .Values.mysql.proxysql.enabled | default false }}
+    size: {{ .Values.mysql.proxysql.replicas | default 1 }}
+    image: "percona/percona-xtradb-cluster-operator:{{ .Values.mysql.proxysql.image.tag | default "1.7.0-proxysql" }}"
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        memory: {{ .Values.mysql.proxysql.resources.requests.memory | default "1G" }}
+        cpu: {{ .Values.mysql.proxysql.resources.requests.cpu | default "600m" }}
+    affinity:
+      antiAffinityTopologyKey: {{ .Values.mysql.affinity.antiAffinityTopologyKey | default "none" }}
+    volumeSpec:
+      persistentVolumeClaim:
+        resources:
+          requests:
+            storage: 2Gi
+    podDisruptionBudget:
+      maxUnavailable: 1
+    gracePeriod: 30
+  logcollector:
+    enabled: true
+    image: percona/percona-xtradb-cluster-operator:1.7.0-logcollector
+    imagePullPolicy: IfNotPresent
+  pmm:
+    enabled: false
+    image: percona/pmm-client:2.12.0
+    imagePullPolicy: IfNotPresent
+    serverHost: monitoring-service
+    serverUser: admin
+  backup:
+    image: percona/percona-xtradb-cluster-operator:1.7.0-pxc8.0-backup
+    imagePullPolicy: IfNotPresent
+    storages:
+      fs-pvc:
+        type: filesystem
+        volume:
+          persistentVolumeClaim:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: 6Gi
+    schedule:
+      - name: "sat-night-backup"
+        schedule: "0 0 * * 6"
+        keep: 3
+        storageName: fs-pvc
+      - name: "daily-backup"
+        schedule: "0 0 * * *"
+        keep: 5
+        storageName: fs-pvc

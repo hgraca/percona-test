@@ -1,0 +1,37 @@
+# Default values for dummy-app.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+# Please keep it order alphabetically
+
+mysql:
+  affinity:
+    antiAffinityTopologyKey: "none"
+  allowUnsafeConfigurations: true
+  pxc:
+    replicas: 1 # If we change this, we also need to change the monitoring.pmmServer.persistence.size
+    image:
+      tag: "5.7"
+    resources:
+      requests:
+        memory: 256M
+        cpu: 150m
+  haproxy: # Simply forwards packages, but has better performance (http://proxysql.blogspot.com/2015/06/sql-load-balancing-benchmark-comparing.html)
+    enabled: true
+    replicas: 1
+    image:
+      tag: "1.7.0-haproxy"
+    resources:
+      requests:
+        memory: 256M
+        cpu: 150m
+  proxysql: # Can understand SQL/DDL/DQL to forwards packages to specific nodes, fork, cache and rewrite queries
+    enabled: false
+    replicas: 0
+    image:
+      tag: "1.7.0-proxysql"
+    resources:
+      requests:
+        memory: 256M
+        cpu: 150m
+
+secretName: "my-cluster-secrets"
